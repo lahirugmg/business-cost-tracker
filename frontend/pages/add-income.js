@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
+import { useSession } from 'next-auth/react';
+import api from '../utils/api';
 import {
   Box,
   Button,
@@ -19,6 +21,8 @@ import {
 export default function AddIncome() {
   const router = useRouter();
   const toast = useToast();
+  const { data: session } = useSession();
+  const [backendStatus, setBackendStatus] = useState('checking');
   const [formData, setFormData] = useState({
     amount: '',
     description: '',
@@ -26,6 +30,27 @@ export default function AddIncome() {
     category: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Check if backend is available
+  useEffect(() => {
+    const checkBackendStatus = async () => {
+      try {
+        const response = await fetch('http://localhost:8000');
+        if (response.ok) {
+          setBackendStatus('online');
+          console.log('Backend is online');
+        } else {
+          setBackendStatus('error');
+          console.log('Backend returned error status:', response.status);
+        }
+      } catch (error) {
+        setBackendStatus('offline');
+        console.log('Backend connection error:', error);
+      }
+    };
+    
+    checkBackendStatus();
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -40,31 +65,109 @@ export default function AddIncome() {
     e.preventDefault();
     setIsSubmitting(true);
 
-    try {
-      await axios.post('http://localhost:8000/incomes/', {
-        amount: parseFloat(formData.amount),
-        description: formData.description,
-        date: formData.date,
-        category: formData.category,
-      });
+    // Prepare the income data
+    const incomeData = {
+      amount: parseFloat(formData.amount),
+      description: formData.description,
+      date: formData.date,
+      category: formData.category,
+    };
 
+    try {
+      // Debug info
+      console.log('Session data:', session);
+      console.log('Backend status:', backendStatus);
+      
+      // Get the auth token if available
+      const authToken = session?.accessToken || '';
+      console.log('Auth token available:', !!authToken);
+      
+      // Try using the API_URL from the environment or fallback to direct backend URL
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      console.log('Using API URL:', API_URL);
+      
+      // Try direct API call with all possible CORS headers
+      const response = await axios.post(`${API_URL}/incomes/`, incomeData, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': authToken ? `Bearer ${authToken}` : '',
+          'Accept': 'application/json',
+          'Origin': window.location.origin,
+        },
+        withCredentials: false, // Try without credentials
+      });
+      
+      console.log('Income successfully added:', response.data);
+      
       toast({
-        title: 'Income added.',
+        title: 'Income added successfully!',
         description: "We've added your income to your account.",
         status: 'success',
         duration: 5000,
         isClosable: true,
       });
-
+      
       router.push('/');
     } catch (error) {
-      toast({
-        title: 'An error occurred.',
-        description: error.message,
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
+      console.error('Error adding income:', error);
+      
+      // Try the fallback method with api utility
+      try {
+        console.log('Direct API call failed, trying fallback with api utility...');
+        const fallbackResponse = await api.post('/incomes/', incomeData);
+        console.log('Fallback succeeded:', fallbackResponse.data);
+        
+        toast({
+          title: 'Income added successfully!',
+          description: "We've added your income to your account using fallback method.",
+          status: 'success',
+          duration: 5000,
+          isClosable: true,
+        });
+        
+        router.push('/');
+        return;
+      } catch (fallbackError) {
+        console.error('Fallback method also failed:', fallbackError);
+        
+        // Original error handling if both methods fail
+        if (error.response) {
+          // The request was made and the server responded with a status code
+          // that falls out of the range of 2xx
+          console.error('Error response data:', error.response.data);
+          console.error('Error response status:', error.response.status);
+          
+          toast({
+            title: 'Error adding income',
+            description: error.response.data.detail || "There was a problem processing your request.",
+            status: 'error',
+            duration: 5000,
+            isClosable: true,
+          });
+        } else if (error.request) {
+          // The request was made but no response was received
+          console.error('No response received:', error.request);
+          
+          toast({
+            title: 'Server unavailable',
+            description: "We couldn't reach the server. Please try again later.",
+            status: 'error',
+            duration: 5000,
+            isClosable: true,
+          });
+        } else {
+          // Something happened in setting up the request that triggered an Error
+          console.error('Error setting up request:', error.message);
+          
+          toast({
+            title: 'Request failed',
+            description: error.message || "An unexpected error occurred.",
+            status: 'error',
+            duration: 5000,
+            isClosable: true,
+          });
+        }
+      }
     } finally {
       setIsSubmitting(false);
     }

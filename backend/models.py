@@ -8,8 +8,9 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True)
-    hashed_password = Column(String)
-    is_active = Column(Boolean, default=True)
+    google_id = Column(String, unique=True)
+    name = Column(String)
+    picture = Column(String, nullable=True)
 
     incomes = relationship("Income", back_populates="owner")
     expenses = relationship("Expense", back_populates="owner")
@@ -22,7 +23,7 @@ class Income(Base):
     description = Column(String)
     date = Column(Date)
     category = Column(String)
-    owner_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
 
     owner = relationship("User", back_populates="incomes")
 
@@ -34,7 +35,10 @@ class Expense(Base):
     description = Column(String)
     date = Column(Date)
     category = Column(String)
+    property_type = Column(String, nullable=True)
     tax_deductible = Column(Boolean, default=False)
-    owner_id = Column(Integer, ForeignKey("users.id"))
+    attachment_filename = Column(String, nullable=True)
+    attachment_path = Column(String, nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
 
     owner = relationship("User", back_populates="expenses") 

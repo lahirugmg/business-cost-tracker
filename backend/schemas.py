@@ -14,7 +14,7 @@ class IncomeCreate(IncomeBase):
 
 class Income(IncomeBase):
     id: int
-    owner_id: int
+    user_id: int
 
     class Config:
         orm_mode = True
@@ -25,14 +25,17 @@ class ExpenseBase(BaseModel):
     description: str
     date: date
     category: str
-    tax_deductible: bool = False
+    property_type: Optional[str] = None
+    tax_deductible: Optional[bool] = None
+    attachment_filename: Optional[str] = None
+    attachment_path: Optional[str] = None
 
 class ExpenseCreate(ExpenseBase):
     pass
 
 class Expense(ExpenseBase):
     id: int
-    owner_id: int
+    user_id: int
 
     class Config:
         orm_mode = True
@@ -49,6 +52,10 @@ class User(UserBase):
     is_active: bool
     incomes: List[Income] = []
     expenses: List[Expense] = []
-
+    
     class Config:
-        orm_mode = True 
+        orm_mode = True
+
+# Auth schemas
+class TokenData(BaseModel):
+    token: str 
