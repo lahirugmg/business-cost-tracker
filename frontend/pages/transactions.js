@@ -28,12 +28,20 @@ import {
   AlertDialogContent,
   AlertDialogOverlay,
   useDisclosure,
+  Center,
+  VStack,
 } from '@chakra-ui/react';
 import { DeleteIcon } from '@chakra-ui/icons';
+import { useSession, signIn } from 'next-auth/react';
 import axios from 'axios';
 import api from '../utils/api';
 
 export default function Transactions() {
+  // Get session data for authentication
+  const { data: session, status } = useSession();
+  const isAuthenticated = !!session;
+  const isLoading = status === 'loading';
+
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // 'all', 'income', 'expense'
@@ -69,9 +77,8 @@ export default function Transactions() {
     { id: 11, amount: 120, description: "Internet", date: "2025-03-15", category: "Utilities" }
   ];
 
-  useEffect(() => {
-    fetchTransactions();
-  }, []);
+  // Original useEffect removed - we now only fetch data when authenticated
+  // This is handled by the new useEffect hook above
 
   const fetchTransactions = async () => {
     try {
@@ -257,6 +264,44 @@ export default function Transactions() {
     .filter(t => t.type === 'expense')
     .reduce((sum, t) => sum + t.amount, 0);
 
+  // Only run fetchTransactions if authenticated
+  useEffect(() => {
+    if (isAuthenticated && !isLoading) {
+      fetchTransactions();
+    }
+  }, [isAuthenticated, isLoading]);
+  
+  // Render different content based on authentication state
+  if (isLoading) {
+    return (
+      <Container maxW="container.xl" py={8}>
+        <Center h="50vh">
+          <Spinner size="xl" />
+        </Center>
+      </Container>
+    );
+  }
+  
+  if (!isAuthenticated) {
+    return (
+      <Container maxW="container.xl" py={8}>
+        <Center h="50vh">
+          <VStack spacing={6}>
+            <Heading>Authentication Required</Heading>
+            <Text>You need to sign in to view your transactions.</Text>
+            <Button
+              colorScheme="blue"
+              size="lg"
+              onClick={() => signIn('google', { callbackUrl: '/transactions' })}
+            >
+              Sign In with Google
+            </Button>
+          </VStack>
+        </Center>
+      </Container>
+    );
+  }
+  
   return (
     <Container maxW="container.xl" py={8}>
       <Box mb={8}>
