@@ -64,6 +64,13 @@ async def read_incomes(
     # Return all incomes
     return crud.get_incomes(db, skip=skip, limit=limit)
 
+@app.delete("/incomes/{income_id}", response_model=schemas.Income)
+def delete_income(income_id: int, db: Session = Depends(get_db)):
+    db_income = crud.delete_income(db, income_id=income_id)
+    if db_income is None:
+        raise HTTPException(status_code=404, detail="Income record not found")
+    return db_income
+
 # Expense endpoints
 @app.post("/upload-attachment/")
 async def upload_attachment(
@@ -88,6 +95,13 @@ def create_expense(expense: schemas.ExpenseCreate = None, db: Session = Depends(
 def read_expenses(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     expenses = crud.get_expenses(db, skip=skip, limit=limit)
     return expenses
+
+@app.delete("/expenses/{expense_id}", response_model=schemas.Expense)
+def delete_expense(expense_id: int, db: Session = Depends(get_db)):
+    db_expense = crud.delete_expense(db, expense_id=expense_id)
+    if db_expense is None:
+        raise HTTPException(status_code=404, detail="Expense not found")
+    return db_expense
 
 @app.post("/auth/google")
 async def google_auth(token: schemas.TokenData, db: Session = Depends(get_db)):

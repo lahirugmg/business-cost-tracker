@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Container,
@@ -18,7 +18,18 @@ import {
   CardBody,
   Alert,
   AlertIcon,
+  Button,
+  IconButton,
+  useToast,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
+  useDisclosure,
 } from '@chakra-ui/react';
+import { DeleteIcon } from '@chakra-ui/icons';
 import axios from 'axios';
 import api from '../utils/api';
 
@@ -28,6 +39,12 @@ export default function Transactions() {
   const [filter, setFilter] = useState('all'); // 'all', 'income', 'expense'
   const [error, setError] = useState(null);
   const [useMockData, setUseMockData] = useState(false);
+  const [deleteItem, setDeleteItem] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  
+  const toast = useToast();
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const cancelRef = React.useRef();
   
   // Sample mock data for demonstration when API is unavailable
   const mockIncomeData = [
@@ -155,6 +172,78 @@ export default function Transactions() {
     }
   };
 
+  // Handler for delete button click
+  const handleDeleteClick = (transaction) => {
+    setDeleteItem(transaction);
+    onOpen();
+  };
+
+  // Function to handle actual deletion
+  const handleDelete = async () => {
+    if (!deleteItem) return;
+    
+    try {
+      setDeleteLoading(true);
+      
+      if (useMockData) {
+        // Simulate deletion in mock data
+        setTransactions(prevTransactions => 
+          prevTransactions.filter(t => 
+            !(t.type === deleteItem.type && t.id === deleteItem.id)
+          )
+        );
+        
+        toast({
+          title: 'Deleted successfully',
+          description: `${deleteItem.type === 'income' ? 'Income' : 'Expense'} record deleted (simulated)`,
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
+      } else {
+        // Real API deletion
+        const endpoint = deleteItem.type === 'income' 
+          ? `/incomes/${deleteItem.id}` 
+          : `/expenses/${deleteItem.id}`;
+          
+        try {
+          await api.delete(endpoint);
+        } catch (apiError) {
+          // Fallback to direct axios if API utility fails
+          await axios.delete(`http://localhost:8000${endpoint}`);
+        }
+        
+        // Update local state to remove the deleted item
+        setTransactions(prevTransactions => 
+          prevTransactions.filter(t => 
+            !(t.type === deleteItem.type && t.id === deleteItem.id)
+          )
+        );
+        
+        toast({
+          title: 'Deleted successfully',
+          description: `${deleteItem.type === 'income' ? 'Income' : 'Expense'} record deleted`,
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
+      }
+    } catch (err) {
+      console.error('Error deleting:', err);
+      toast({
+        title: 'Error',
+        description: `Failed to delete ${deleteItem.type}. Please try again.`,
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setDeleteLoading(false);
+      setDeleteItem(null);
+      onClose();
+    }
+  };
+
   const filteredTransactions = transactions.filter(transaction => {
     if (filter === 'all') return true;
     return transaction.type === filter;
@@ -235,6 +324,7 @@ export default function Transactions() {
                   <Th>Category</Th>
                   <Th>Description</Th>
                   <Th isNumeric>Amount</Th>
+                  <Th>Actions</Th>
                 </Tr>
               </Thead>
               <Tbody>
@@ -258,6 +348,16 @@ export default function Transactions() {
                         ${transaction.amount.toFixed(2)}
                       </Text>
                     </Td>
+                    <Td>
+                      <IconButton
+                        aria-label="Delete transaction"
+                        icon={<DeleteIcon />}
+                        colorScheme="red"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteClick(transaction)}
+                      />
+                    </Td>
                   </Tr>
                 ))}
               </Tbody>
@@ -265,6 +365,39 @@ export default function Transactions() {
           </Box>
         )}
       </Box>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        isOpen={isOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={onClose}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete {deleteItem?.type === 'income' ? 'Income' : 'Expense'} Record
+            </AlertDialogHeader>
+
+            <AlertDialogBody>
+              Are you sure you want to delete this {deleteItem?.type} record? 
+              This action cannot be undone.
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={onClose}>Cancel</Button>
+              <Button
+                colorScheme="red"
+                onClick={handleDelete}
+                ml={3}
+                isLoading={deleteLoading}
+                loadingText="Deleting..."
+              >
+                Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </Container>
   );
-} 
+}
