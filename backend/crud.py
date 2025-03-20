@@ -29,6 +29,20 @@ def create_income(db: Session, income: schemas.IncomeCreate, user_id: int = 1):
     db.refresh(db_income)
     return db_income
 
+def update_income(db: Session, income_id: int, income_data: schemas.IncomeUpdate):
+    db_income = db.query(models.Income).filter(models.Income.id == income_id).first()
+    if db_income is None:
+        return None
+        
+    # Update the income object with new data
+    update_data = income_data.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_income, key, value)
+    
+    db.commit()
+    db.refresh(db_income)
+    return db_income
+
 def delete_income(db: Session, income_id: int):
     db_income = db.query(models.Income).filter(models.Income.id == income_id).first()
     if db_income is None:
@@ -44,6 +58,20 @@ def get_expenses(db: Session, skip: int = 0, limit: int = 100):
 def create_expense(db: Session, expense: schemas.ExpenseCreate, user_id: int = 1):
     db_expense = models.Expense(**expense.dict(), user_id=user_id)
     db.add(db_expense)
+    db.commit()
+    db.refresh(db_expense)
+    return db_expense
+
+def update_expense(db: Session, expense_id: int, expense_data: schemas.ExpenseUpdate):
+    db_expense = db.query(models.Expense).filter(models.Expense.id == expense_id).first()
+    if db_expense is None:
+        return None
+        
+    # Update the expense object with new data
+    update_data = expense_data.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_expense, key, value)
+    
     db.commit()
     db.refresh(db_expense)
     return db_expense

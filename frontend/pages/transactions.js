@@ -31,7 +31,7 @@ import {
   Center,
   VStack,
 } from '@chakra-ui/react';
-import { DeleteIcon } from '@chakra-ui/icons';
+import { DeleteIcon, EditIcon } from '@chakra-ui/icons';
 import { useSession, signIn } from 'next-auth/react';
 import axios from 'axios';
 import api from '../utils/api';
@@ -49,9 +49,12 @@ export default function Transactions() {
   const [useMockData, setUseMockData] = useState(false);
   const [deleteItem, setDeleteItem] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+  const [editLoading, setEditLoading] = useState(false);
   
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const { isOpen: isEditOpen, onOpen: onEditOpen, onClose: onEditClose } = useDisclosure();
   const cancelRef = React.useRef();
   
   // Sample mock data for demonstration when API is unavailable
@@ -275,6 +278,103 @@ export default function Transactions() {
     });
   };
 
+  // Handler for edit button click
+  const handleEditClick = (transaction) => {
+    // Create a copy of the transaction for editing
+    setEditItem({...transaction});
+    onEditOpen();
+  };
+
+  // Function to handle transaction update
+  const handleUpdateTransaction = async () => {
+    if (!editItem) return;
+    
+    try {
+      setEditLoading(true);
+      
+      // Prepare the update data (exclude user_id and type which are not part of the schema)
+      const updateData = {
+        amount: editItem.amount,
+        description: editItem.description,
+        date: editItem.date,
+        category: editItem.category
+      };
+      
+      // For expenses, include tax_deductible if available
+      if (editItem.type === 'expense' && editItem.tax_deductible !== undefined) {
+        updateData.tax_deductible = editItem.tax_deductible;
+        
+        // Include other expense-specific fields if they exist
+        if (editItem.property_type !== undefined) updateData.property_type = editItem.property_type;
+        if (editItem.attachment_filename !== undefined) updateData.attachment_filename = editItem.attachment_filename;
+        if (editItem.attachment_path !== undefined) updateData.attachment_path = editItem.attachment_path;
+      }
+      
+      if (useMockData) {
+        // Simulate update in mock data
+        setTransactions(prevTransactions => 
+          prevTransactions.map(t => {
+            if (t.type === editItem.type && t.id === editItem.id) {
+              return {...editItem};
+            }
+            return t;
+          })
+        );
+        
+        toast({
+          title: 'Updated successfully',
+          description: `${editItem.type === 'income' ? 'Income' : 'Expense'} record updated (simulated)`,
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
+      } else {
+        // Determine the endpoint based on transaction type
+        const endpoint = editItem.type === 'income' 
+          ? `/incomes/${editItem.id}`
+          : `/expenses/${editItem.id}`;
+        
+        // Send the update request
+        const response = await api.put(endpoint, updateData);
+        
+        // Update the transactions list with the updated item
+        setTransactions(transactions.map(t => {
+          // Match by both type and id to ensure we update the correct transaction
+          if (t.type === editItem.type && t.id === editItem.id) {
+            return {...response.data, type: editItem.type};
+          }
+          return t;
+        }));
+        
+        // Show success message
+        toast({
+          title: 'Transaction updated',
+          description: `Your ${editItem.type} transaction has been updated successfully.`,
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
+      }
+      
+      // Close the edit dialog
+      onEditClose();
+    } catch (error) {
+      console.error('Error updating transaction:', error);
+      
+      // Show error message
+      toast({
+        title: 'Update failed',
+        description: `Unable to update ${editItem.type}: ${error.message}`,
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setEditLoading(false);
+      setEditItem(null);
+    }
+  };
+
   // Handler for delete button click
   const handleDeleteClick = (transaction) => {
     setDeleteItem(transaction);
@@ -490,14 +590,24 @@ export default function Transactions() {
                       </Text>
                     </Td>
                     <Td>
-                      <IconButton
-                        aria-label="Delete transaction"
-                        icon={<DeleteIcon />}
-                        colorScheme="red"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteClick(transaction)}
-                      />
+                      <HStack spacing={2}>
+                        <IconButton
+                          aria-label="Edit transaction"
+                          icon={<EditIcon />}
+                          colorScheme="blue"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditClick(transaction)}
+                        />
+                        <IconButton
+                          aria-label="Delete transaction"
+                          icon={<DeleteIcon />}
+                          colorScheme="red"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteClick(transaction)}
+                        />
+                      </HStack>
                     </Td>
                   </Tr>
                 ))}
@@ -534,6 +644,93 @@ export default function Transactions() {
                 loadingText="Deleting..."
               >
                 Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
+
+      {/* Edit Transaction Modal */}
+      <AlertDialog
+        isOpen={isEditOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={onEditClose}
+        size="lg"
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Edit {editItem?.type === 'income' ? 'Income' : 'Expense'}
+            </AlertDialogHeader>
+
+            <AlertDialogBody>
+              {editItem && (
+                <VStack spacing={4} align="stretch">
+                  <Box>
+                    <Text mb={1}>Description</Text>
+                    <input
+                      type="text"
+                      value={editItem.description}
+                      onChange={(e) => setEditItem({...editItem, description: e.target.value})}
+                      className="chakra-input css-1kp110w"
+                    />
+                  </Box>
+                  
+                  <Box>
+                    <Text mb={1}>Amount</Text>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={editItem.amount}
+                      onChange={(e) => setEditItem({...editItem, amount: parseFloat(e.target.value)})}
+                      className="chakra-input css-1kp110w"
+                    />
+                  </Box>
+                  
+                  <Box>
+                    <Text mb={1}>Date</Text>
+                    <input
+                      type="date"
+                      value={editItem.date}
+                      onChange={(e) => setEditItem({...editItem, date: e.target.value})}
+                      className="chakra-input css-1kp110w"
+                    />
+                  </Box>
+                  
+                  <Box>
+                    <Text mb={1}>Category</Text>
+                    <input
+                      type="text"
+                      value={editItem.category}
+                      onChange={(e) => setEditItem({...editItem, category: e.target.value})}
+                      className="chakra-input css-1kp110w"
+                    />
+                  </Box>
+                  
+                  {editItem.type === 'expense' && (
+                    <Box>
+                      <Text mb={1}>Tax Deductible</Text>
+                      <input
+                        type="checkbox"
+                        checked={editItem.tax_deductible}
+                        onChange={(e) => setEditItem({...editItem, tax_deductible: e.target.checked})}
+                      />
+                    </Box>
+                  )}
+                </VStack>
+              )}
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={onEditClose}>Cancel</Button>
+              <Button
+                colorScheme="blue"
+                onClick={handleUpdateTransaction}
+                ml={3}
+                isLoading={editLoading}
+                loadingText="Updating..."
+              >
+                Update
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>

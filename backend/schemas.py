@@ -12,6 +12,9 @@ class IncomeBase(BaseModel):
 class IncomeCreate(IncomeBase):
     pass
 
+class IncomeUpdate(IncomeBase):
+    pass
+
 class Income(IncomeBase):
     id: int
     user_id: int
@@ -31,6 +34,9 @@ class ExpenseBase(BaseModel):
     attachment_path: Optional[str] = None
 
 class ExpenseCreate(ExpenseBase):
+    pass
+
+class ExpenseUpdate(ExpenseBase):
     pass
 
 class Expense(ExpenseBase):

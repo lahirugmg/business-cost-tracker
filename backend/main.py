@@ -90,6 +90,13 @@ async def read_incomes(
     # Return all incomes
     return crud.get_incomes(db, skip=skip, limit=limit)
 
+@app.put("/incomes/{income_id}", response_model=schemas.Income)
+def update_income(income_id: int, income: schemas.IncomeUpdate, db: Session = Depends(get_db)):
+    db_income = crud.update_income(db, income_id=income_id, income_data=income)
+    if db_income is None:
+        raise HTTPException(status_code=404, detail="Income not found")
+    return db_income
+
 @app.delete("/incomes/{income_id}", response_model=schemas.Income)
 def delete_income(income_id: int, db: Session = Depends(get_db)):
     db_income = crud.delete_income(db, income_id=income_id)
@@ -121,6 +128,13 @@ def create_expense(expense: schemas.ExpenseCreate = None, db: Session = Depends(
 def read_expenses(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     expenses = crud.get_expenses(db, skip=skip, limit=limit)
     return expenses
+
+@app.put("/expenses/{expense_id}", response_model=schemas.Expense)
+def update_expense(expense_id: int, expense: schemas.ExpenseUpdate, db: Session = Depends(get_db)):
+    db_expense = crud.update_expense(db, expense_id=expense_id, expense_data=expense)
+    if db_expense is None:
+        raise HTTPException(status_code=404, detail="Expense not found")
+    return db_expense
 
 @app.delete("/expenses/{expense_id}", response_model=schemas.Expense)
 def delete_expense(expense_id: int, db: Session = Depends(get_db)):
