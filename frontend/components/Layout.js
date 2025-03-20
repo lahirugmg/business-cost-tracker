@@ -27,6 +27,9 @@ export default function Layout({ children }) {
                   <Link href="/add-expense" passHref legacyBehavior>
                     <Button as="a" variant="ghost">Add Expense</Button>
                   </Link>
+                  <Link href="/receipts" passHref legacyBehavior>
+                    <Button as="a" variant="ghost">Receipt Processing</Button>
+                  </Link>
                 </>
               )}
             </Flex>

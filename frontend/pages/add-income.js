@@ -31,8 +31,13 @@ export default function AddIncome() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Check if backend is available
+  // Check authentication status and backend availability
   useEffect(() => {
+    // Check authentication first
+    if (!session && session === null) {
+      console.log('User is not authenticated');
+    }
+    
     const checkBackendStatus = async () => {
       try {
         const response = await fetch('http://localhost:8000');
@@ -50,7 +55,21 @@ export default function AddIncome() {
     };
     
     checkBackendStatus();
-  }, []);
+  }, [session]);
+  
+  // Add authentication check - redirect if not authenticated
+  useEffect(() => {
+    if (session === null) { // explicitly check for null (unauthenticated) 
+      toast({
+        title: 'Authentication Required',
+        description: 'Please sign in to add income transactions',
+        status: 'warning',
+        duration: 5000,
+        isClosable: true,
+      });
+      router.push('/');
+    }
+  }, [session, router, toast]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -64,6 +83,20 @@ export default function AddIncome() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
+    
+    // Check explicit authentication before submitting
+    if (!session) {
+      toast({
+        title: 'Authentication Required',
+        description: 'Please sign in to add income transactions',
+        status: 'warning',
+        duration: 5000,
+        isClosable: true,
+      });
+      setIsSubmitting(false);
+      router.push('/');
+      return;
+    }
 
     // Prepare the income data
     const incomeData = {
@@ -137,13 +170,26 @@ export default function AddIncome() {
           console.error('Error response data:', error.response.data);
           console.error('Error response status:', error.response.status);
           
-          toast({
-            title: 'Error adding income',
-            description: error.response.data.detail || "There was a problem processing your request.",
-            status: 'error',
-            duration: 5000,
-            isClosable: true,
-          });
+          // Handle authentication errors specifically
+          if (error.response.status === 401 || error.response.status === 403) {
+            toast({
+              title: 'Authentication Required',
+              description: 'Your session may have expired. Please sign in again.',
+              status: 'warning',
+              duration: 5000,
+              isClosable: true,
+            });
+            // Redirect to home page for authentication
+            setTimeout(() => router.push('/'), 1000);
+          } else {
+            toast({
+              title: 'Error adding income',
+              description: error.response.data.detail || "There was a problem processing your request.",
+              status: 'error',
+              duration: 5000,
+              isClosable: true,
+            });
+          }
         } else if (error.request) {
           // The request was made but no response was received
           console.error('No response received:', error.request);

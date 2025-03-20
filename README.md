@@ -47,6 +47,62 @@ pip install -r requirements.txt
 export DATABASE_URL="postgresql://financial_user:your_secure_password@localhost:5432/financial_tracker"
 ```
 
+## Authentication Mechanism
+
+The Business Cost Tracker implements a secure authentication flow between the frontend and backend API that ensures explicit user authentication is always required. Here's how it works:
+
+### Frontend Authentication (NextAuth.js)
+
+1. **Sign-In Process**:
+   - The application uses NextAuth.js with Google OAuth provider.
+   - When a user clicks "Sign In with Google", they're redirected to Google's authentication page.
+   - The `prompt: 'select_account'` parameter is explicitly set to force account selection, preventing automatic sign-in from remembered accounts.
+
+2. **Token Exchange**:
+   - After successful Google authentication, Google returns an ID token.
+   - The frontend exchanges this Google token for a custom JWT token from the backend.
+   - This is done in the `exchangeToken` function in `utils/api.js`.
+
+3. **Token Storage & Use**:
+   - Once authenticated, the backend token is stored in memory (not persisted).
+   - This token is added to all subsequent API requests via the Axios interceptor.
+   - Importantly, there's no persistent storage of tokens to avoid automatic sign-in.
+
+### Backend Authentication (FastAPI)
+
+1. **Google Token Verification**:
+   - The backend receives the Google ID token at `/auth/google` endpoint.
+   - It verifies this token using Google's libraries in the `verify_google_token` function.
+   - This ensures the token is valid, unexpired, and issued by Google.
+
+2. **JWT Token Generation**:
+   - After verification, the backend extracts user information (email, name, etc.).
+   - It then generates a custom JWT token using the application's secret key.
+   - This token is sent back to the frontend.
+
+3. **Request Authorization**:
+   - For protected routes, the backend extracts and validates the JWT token.
+   - The `get_current_user` function checks this token against the secret key.
+   - If valid, the request proceeds; if invalid or missing, a 401 error is returned.
+
+### Troubleshooting Authentication Issues
+
+1. **Check Google OAuth Credentials**:
+   - Ensure the correct Google client ID and secret are configured in the backend `.env` file.
+   - Make sure the Google Cloud Console project has the correct redirect URIs configured.
+
+2. **Check Backend Logs**:
+   - Authentication failures are logged in detail in the backend console.
+   - Look for specific error messages about token validation.
+
+3. **Check Frontend Network Requests**:
+   - Use browser developer tools to inspect the token exchange request.
+   - Check for any error responses from the backend.
+
+4. **Verify Environment Variables**:
+   - Ensure `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are properly set in backend `.env`.
+   - Check that the Next.js frontend has the correct API URL configured.
+
 #### 4. Database Migration
 
 ```bash

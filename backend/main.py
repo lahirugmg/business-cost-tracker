@@ -13,27 +13,53 @@ import crud
 import auth
 from database import SessionLocal, engine
 
+# Try to import routers, but don't fail if dependencies are missing
+try:
+    from routers import receipts
+    has_receipts_router = True
+    print("Receipts router loaded successfully")
+except ImportError as e:
+    has_receipts_router = False
+    print(f"Warning: Receipt processing disabled due to missing dependencies: {e}")
+    print("Running in demo mode with limited functionality")
+
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Financial Tracker API")
 
-# Configure CORS - Maximum permissiveness for debugging
+# Configure CORS - Allow specific origins for authentication to work properly
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins temporarily for debugging
+    allow_origins=[
+        "http://localhost:3000",     # Frontend development server
+        "http://127.0.0.1:3000",     # Alternative frontend URL
+        "https://business-cost-tracker.vercel.app"  # Production URL if deployed
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-    max_age=600,  # Cache preflight requests for 10 minutes
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
+    expose_headers=["Content-Length", "X-Total-Count"],
+    max_age=600  # Cache preflight requests for 10 minutes
 )
 
 # Setup upload directory
 UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
 
+# Add a health check endpoint to allow frontend to check if backend is available
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "version": "1.0", "demo_mode": auth.DEMO_MODE}
+
 # Mount the upload directory as a static file server
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
+# Include routers
+if 'has_receipts_router' in globals() and has_receipts_router:
+    app.include_router(receipts.router, prefix="/receipts", tags=["receipts"])
+    print("Receipts router added to the API")
+else:
+    print("Receipts router not available, running with limited functionality")
 
 # Dependency to get the database session
 def get_db():
@@ -103,6 +129,20 @@ def delete_expense(expense_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Expense not found")
     return db_expense
 
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+
+@app.options("/auth/google")
+async def auth_google_options():
+    # Handle OPTIONS preflight request for the auth endpoint
+    headers = {
+        "Access-Control-Allow-Origin": "http://localhost:3000",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, Origin, X-Requested-With",
+        "Access-Control-Allow-Credentials": "true",
+    }
+    return JSONResponse(content={}, headers=headers)
+
 @app.post("/auth/google")
 async def google_auth(token: schemas.TokenData, db: Session = Depends(get_db)):
     user_data = auth.verify_google_token(token.token)
@@ -123,13 +163,28 @@ async def google_auth(token: schemas.TokenData, db: Session = Depends(get_db)):
         data={"sub": user_data["email"]}
     )
     
-    # Check if we're in demo mode
-    if auth.DEMO_MODE:
-        return {
-            "access_token": access_token, 
-            "token_type": "bearer",
-            "demo_mode": True,
-            "message": "Using demo mode authentication"
-        }
+    # Create response with custom headers to ensure CORS works
+    response_data = {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "demo_mode": auth.DEMO_MODE,
+    }
     
-    return {"access_token": access_token, "token_type": "bearer"} 
+    # Create response with CORS headers
+    headers = {
+        "Access-Control-Allow-Origin": "http://localhost:3000",
+        "Access-Control-Allow-Credentials": "true",
+    }
+    
+    # Add demo mode message if needed
+    if auth.DEMO_MODE:
+        response_data["message"] = "Using demo mode authentication"
+        
+    # Return the response with headers
+    return JSONResponse(content=response_data, headers=headers)
+
+# Run the app on startup
+if __name__ == "__main__":
+    import uvicorn
+    print("Starting server at http://localhost:8000")
+    uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -1,0 +1,61 @@
+{
+  "Groceries": [
+    "supermarket",
+    "grocery",
+    "market",
+    "food",
+    "produce"
+  ],
+  "Dining": [
+    "restaurant",
+    "cafe",
+    "coffee",
+    "diner",
+    "takeout"
+  ],
+  "Transportation": [
+    "gas",
+    "fuel",
+    "uber",
+    "lyft",
+    "taxi",
+    "fare",
+    "transit"
+  ],
+  "Utilities": [
+    "electric",
+    "water",
+    "gas",
+    "internet",
+    "phone",
+    "bill"
+  ],
+  "Entertainment": [
+    "movie",
+    "theater",
+    "cinema",
+    "ticket",
+    "subscription"
+  ],
+  "Office Supplies": [
+    "office",
+    "paper",
+    "supplies",
+    "stationery",
+    "printing"
+  ],
+  "Hardware": [
+    "tools",
+    "hardware",
+    "repair",
+    "building",
+    "equipment"
+  ],
+  "Medical": [
+    "pharmacy",
+    "doctor",
+    "medical",
+    "health",
+    "clinic"
+  ]
+}

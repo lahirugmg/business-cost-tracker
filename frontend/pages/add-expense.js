@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import { useSession } from 'next-auth/react';
 import api from '../utils/api';
 import axios from 'axios';
 import {
@@ -22,6 +23,24 @@ import {
 export default function AddExpense() {
   const router = useRouter();
   const toast = useToast();
+  const { data: session, status } = useSession();
+  const isAuthenticated = !!session;
+  
+  // Check authentication on page load
+  useEffect(() => {
+    // If explicitly not authenticated, redirect to home
+    if (status === 'unauthenticated') {
+      toast({
+        title: 'Authentication Required',
+        description: 'Please sign in to add expenses',
+        status: 'warning',
+        duration: 5000,
+        isClosable: true,
+      });
+      router.push('/');
+    }
+  }, [status, router, toast]);
+  
   const [formData, setFormData] = useState({
     amount: '',
     description: '',
@@ -136,13 +155,26 @@ export default function AddExpense() {
         console.error('Error response data:', error.response.data);
         console.error('Error response status:', error.response.status);
         
-        toast({
-          title: 'Error adding expense',
-          description: error.response.data.detail || "There was a problem processing your request.",
-          status: 'error',
-          duration: 5000,
-          isClosable: true,
-        });
+        // Handle authentication errors specifically
+        if (error.response.status === 401 || error.response.status === 403) {
+          toast({
+            title: 'Authentication Required',
+            description: 'Your session may have expired. Please sign in again.',
+            status: 'warning',
+            duration: 5000,
+            isClosable: true,
+          });
+          // Redirect to home page for authentication
+          setTimeout(() => router.push('/'), 1000);
+        } else {
+          toast({
+            title: 'Error adding expense',
+            description: error.response.data.detail || "There was a problem processing your request.",
+            status: 'error',
+            duration: 5000,
+            isClosable: true,
+          });
+        }
       } else if (error.request) {
         // The request was made but no response was received
         console.error('No response received:', error.request);

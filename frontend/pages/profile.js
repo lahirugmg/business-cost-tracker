@@ -20,23 +20,49 @@ export default function Profile() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
-  // Redirect to login if not authenticated
+  // Show a message and redirect to home if not authenticated
+  // This respects explicit authentication preference
   useEffect(() => {
     if (status === 'unauthenticated') {
-      router.push('/api/auth/signin');
+      // Use next/router to redirect to home page instead of directly to sign-in
+      // This respects the user's preference for explicit authentication
+      console.log('User not authenticated, redirecting to home');
+      router.push('/');
     }
   }, [status, router]);
 
   if (status === 'loading') {
     return (
       <Container maxW="container.md" py={10}>
-        <Text>Loading...</Text>
+        <Box textAlign="center" py={10}>
+          <Text fontSize="xl">Loading your profile...</Text>
+        </Box>
       </Container>
     );
   }
 
   if (!session) {
-    return null;
+    return (
+      <Container maxW="container.md" py={10}>
+        <Box textAlign="center" py={10}>
+          <Heading size="lg" mb={4}>Authentication Required</Heading>
+          <Text mb={4}>Please sign in to view your profile information.</Text>
+          <Box as="button"
+            p={4}
+            color="white"
+            fontWeight="bold"
+            borderRadius="md"
+            bgGradient="linear(to-r, teal.500, green.500)"
+            _hover={{
+              bgGradient: 'linear(to-r, teal.600, green.600)',
+            }}
+            onClick={() => router.push('/')}
+          >
+            Return to Homepage
+          </Box>
+        </Box>
+      </Container>
+    );
   }
 
   return (

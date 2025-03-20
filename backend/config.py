@@ -31,7 +31,7 @@ development_config = {
     **base_config,
     "GOOGLE_CLIENT_ID": os.getenv("GOOGLE_CLIENT_ID", ""),
     "GOOGLE_CLIENT_SECRET": os.getenv("GOOGLE_CLIENT_SECRET", ""),
-    "DEMO_MODE": not (os.getenv("GOOGLE_CLIENT_ID") and os.getenv("GOOGLE_CLIENT_SECRET"))
+    "DEMO_MODE": False  # Disable demo mode to use real Google authentication
 }
 
 # Testing environment configuration

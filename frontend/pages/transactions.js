@@ -77,21 +77,59 @@ export default function Transactions() {
     { id: 11, amount: 120, description: "Internet", date: "2025-03-15", category: "Utilities" }
   ];
 
-  // Original useEffect removed - we now only fetch data when authenticated
-  // This is handled by the new useEffect hook above
+  // Add useEffect hook to fetch data only when authenticated
+  useEffect(() => {
+    // Only fetch data when the user is authenticated
+    if (status === 'authenticated' && isAuthenticated) {
+      console.log('User authenticated, fetching transactions');
+      fetchTransactions();
+    } else if (status === 'unauthenticated') {
+      // If explicitly not authenticated, set empty transactions and stop loading
+      console.log('User is not authenticated, showing empty transactions');
+      setTransactions([]);
+      setLoading(false);
+      // We don't show a toast here to respect explicit authentication preference
+    }
+    // We don't include isAuthenticated in the dependency array to prevent re-fetching
+    // when it changes during the session
+  }, [status]);
 
   const fetchTransactions = async () => {
     try {
+      // Check if user is authenticated first
+      if (!isAuthenticated) {
+        console.log('User not authenticated, showing empty transactions list');
+        setTransactions([]);
+        setLoading(false);
+        return;
+      }
+      
       setLoading(true);
       setUseMockData(false);
+      setError(null);
       
       try {
-        // Try to use the API utility first with correct auth headers
+        // No demo mode - use real authentication only
+        
+        // Use the API utility with improved error handling
         const [incomesResponse, expensesResponse] = await Promise.all([
-          api.get('/incomes/'),
-          api.get('/expenses/')
+          api.get('/incomes/', {
+            // Add explicit validation status handling
+            validateStatus: function(status) {
+              return status >= 200 && status < 300; // Only accept 2xx status codes
+            },
+            // Add longer timeout for slower connections
+            timeout: 10000
+          }),
+          api.get('/expenses/', {
+            validateStatus: function(status) {
+              return status >= 200 && status < 300;
+            },
+            timeout: 10000
+          })
         ]);
 
+        // Process successful responses
         const incomes = incomesResponse.data.map(income => ({
           ...income,
           type: 'income'
@@ -107,76 +145,134 @@ export default function Transactions() {
         );
 
         setTransactions(allTransactions);
+        console.log('Successfully fetched', allTransactions.length, 'transactions');
       } catch (apiError) {
-        // If API approach fails, try direct axios call as fallback
-        try {
-          const [incomesResponse, expensesResponse] = await Promise.all([
-            axios.get('http://localhost:8000/incomes/'),
-            axios.get('http://localhost:8000/expenses/')
-          ]);
-
-          const incomes = incomesResponse.data.map(income => ({
-            ...income,
-            type: 'income'
-          }));
-
-          const expenses = expensesResponse.data.map(expense => ({
-            ...expense,
-            type: 'expense'
-          }));
-
-          const allTransactions = [...incomes, ...expenses].sort((a, b) => 
-            new Date(b.date) - new Date(a.date)
-          );
-
-          setTransactions(allTransactions);
-        } catch (axiosError) {
-          // Both approaches failed, use mock data
-          console.log('Using mock data due to API errors');
+        // Handle API-specific errors with better error messages
+        console.error('API error fetching transactions:', apiError);
+        
+        // Handle different types of errors
+        if (apiError.response) {
+          // The request was made and the server responded with an error status
+          if (apiError.response.status === 401 || apiError.response.status === 403) {
+            // Authentication error - respect explicit authentication preference
+            setError('Authentication required. Please sign in to view your transactions.');
+            toast({
+              title: 'Authentication Required',
+              description: 'Please sign in to view your transactions',
+              status: 'warning',
+              duration: 5000,
+              isClosable: true,
+            });
+            
+            // Don't try to fall back to direct API call for auth issues
+            setTransactions([]);
+            return;
+          } else {
+            // Other server error - try direct API call as fallback
+            setError(`Server error: ${apiError.response.status} - Trying alternative connection`);
+            tryDirectApiCall();
+          }
+        } else if (apiError.request) {
+          // Network error - backend might be unavailable
+          console.error('Network error - Backend might be unavailable');
+          setError('Backend service unavailable');
           
-          const mockIncomes = mockIncomeData.map(income => ({
-            ...income,
-            type: 'income'
-          }));
+          toast({
+            title: 'Backend Service Unavailable',
+            description: 'Unable to connect to the backend. You can try demo mode on the home page.',
+            status: 'error',
+            duration: 5000,
+            isClosable: true,
+          });
           
-          const mockExpenses = mockExpenseData.map(expense => ({
-            ...expense,
-            type: 'expense'
-          }));
-          
-          const mockTransactions = [...mockIncomes, ...mockExpenses].sort((a, b) => 
-            new Date(b.date) - new Date(a.date)
-          );
-          
-          setTransactions(mockTransactions);
-          setUseMockData(true);
-          setError('Using demo data - backend not accessible');
+          // Redirect to home page with backend error parameter
+          // This respects explicit authentication preference by not automatically enabling demo mode
+          router.push('/?backendError=unavailable');
+          return;
+        } else {
+          // Unknown error - try direct API call as fallback
+          setError(`Error: ${apiError.message} - Trying alternative connection`);
+          tryDirectApiCall();
         }
       }
     } catch (err) {
       console.error('Error in transaction handling:', err);
+      // Show error toast to user
+      toast({
+        title: 'Error Loading Transactions',
+        description: 'An unexpected error occurred while loading your transactions',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
       
-      // Ultimate fallback to mock data
-      const mockIncomes = mockIncomeData.map(income => ({
-        ...income,
-        type: 'income'
-      }));
-      
-      const mockExpenses = mockExpenseData.map(expense => ({
-        ...expense,
-        type: 'expense'
-      }));
-      
-      const mockTransactions = [...mockIncomes, ...mockExpenses].sort((a, b) => 
-        new Date(b.date) - new Date(a.date)
-      );
-      
-      setTransactions(mockTransactions);
-      setUseMockData(true);
-      setError('Using demo data - backend not accessible');
+      // Fall back to demo data
+      useDemoData();
     } finally {
       setLoading(false);
     }
+  };
+  
+  // Helper function to try direct API call (without authentication)
+  const tryDirectApiCall = async () => {
+    try {
+      const [incomesResponse, expensesResponse] = await Promise.all([
+        axios.get('http://localhost:8000/incomes/', { timeout: 8000 }),
+        axios.get('http://localhost:8000/expenses/', { timeout: 8000 })
+      ]);
+
+      const incomes = incomesResponse.data.map(income => ({
+        ...income,
+        type: 'income'
+      }));
+
+      const expenses = expensesResponse.data.map(expense => ({
+        ...expense,
+        type: 'expense'
+      }));
+
+      const allTransactions = [...incomes, ...expenses].sort((a, b) => 
+        new Date(b.date) - new Date(a.date)
+      );
+
+      setTransactions(allTransactions);
+      console.log('Successfully fetched transactions via direct API call');
+    } catch (directError) {
+      console.error('Direct API call failed:', directError);
+      // Fall back to demo data
+      useDemoData();
+    }
+  };
+  
+  // Helper function to use demo data
+  const useDemoData = () => {
+    console.log('Using demo data due to API errors');
+    
+    const mockIncomes = mockIncomeData.map(income => ({
+      ...income,
+      type: 'income'
+    }));
+    
+    const mockExpenses = mockExpenseData.map(expense => ({
+      ...expense,
+      type: 'expense'
+    }));
+    
+    const mockTransactions = [...mockIncomes, ...mockExpenses].sort((a, b) => 
+      new Date(b.date) - new Date(a.date)
+    );
+    
+    setTransactions(mockTransactions);
+    setUseMockData(true);
+    setError('Using demo data - backend not accessible');
+    
+    toast({
+      title: "Demo Mode",
+      description: "Using example data since the API is unavailable.",
+      status: "info",
+      duration: 5000,
+      isClosable: true,
+    });
   };
 
   // Handler for delete button click
